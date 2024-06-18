@@ -74,9 +74,10 @@ process_config_file() {
     DRY_RUN=$(yq eval '.dryRun' "$config_file")
   fi
 
-  yq eval '.namespaces[] | {"name": .name, "annotation": .annotation}' "$config_file" | while IFS= read -r namespace; do
-    name=$(echo "$namespace" | yq eval '.name' -)
-    annotation=$(echo "$namespace" | yq eval '.annotation' -)
+  namespace_count=$(yq eval '.namespaces | length' "$config_file")
+  for (( i=0; i<namespace_count; i++ )); do
+    name=$(yq eval ".namespaces[$i].name" "$config_file")
+    annotation=$(yq eval ".namespaces[$i].annotation" "$config_file")
     if [ "$annotation" != "enabled" ] && [ "$annotation" != "disabled" ]; then
       log "Invalid annotation value for namespace $name. Must be 'enabled' or 'disabled'. Skipping."
       continue
