@@ -1,210 +1,98 @@
-# linkered-global
+# Linkerd Namespace Annotator
 ---
-### Updated `linkerd_namespace_annotator.sh`
+
+### Introduction
+
+This project provides a shell script for annotating Kubernetes namespaces for Linkerd service mesh injection.
+
+Future State:
+- Dockerize the shell scripts
+- Kubernetes cronjob or job with kustomize to auto create the configmap from provided configuration file
+
+## Prerequisites
+
+Ensure the following tools are installed:
+
+- `kubectl`
+- `yq`
+
+### Installing `yq`
+
+For most systems:
 
 ```bash
-#!/bin/bash
-
-# Function to display usage
-usage() {
-  echo "Usage: $0 -f <config_file> | -n <namespace1> -n <namespace2> ... -a <enabled|disabled> [--dry-run] [--verbose]"
-  echo "  -f <config_file>       Path to the YAML configuration file"
-  echo "  -n <namespace>         Namespace(s) to annotate"
-  echo "  -a <enabled|disabled>  Annotation state for Linkerd injection (required with -n)"
-  echo "  --dry-run              Simulate the changes without applying them"
-  echo "  --verbose              Enable verbose output"
-  exit 1
-}
-
-# Function to log messages
-log() {
-  echo "$(date +"%Y-%m-%d %H:%M:%S") - $1"
-}
-
-# Function to validate yq and kubectl CLI are installed
-validate_tools() {
-  if ! command -v kubectl &> /dev/null; then
-    log "kubectl CLI is not installed. Please install it and try again."
-    exit 1
-  fi
-  if ! command -v yq &> /dev/null; then
-    log "yq is not installed. Please install it and try again."
-    exit 1
-  fi
-}
-
-# Function to validate kubectl context
-validate_kubectl_context() {
-  if ! kubectl cluster-info > /dev/null 2>&1; then
-    log "kubectl context is not set correctly. Please configure it and try again."
-    exit 1
-  fi
-}
-
-# Function to check if namespace already has the desired annotation
-check_annotation() {
-  local namespace=$1
-  local annotation=$2
-
-  current_annotation=$(kubectl get namespace "${namespace}" -o jsonpath='{.metadata.annotations.linkerd\.io/inject}' 2>/dev/null)
-  if [ "${current_annotation}" == "${annotation}" ]; then
-    return 0  # Annotation matches
-  else
-    return 1  # Annotation does not match or is not present
-  fi
-}
-
-# Function to annotate a namespace
-annotate_namespace() {
-  local namespace=$1
-  local annotation=$2
-  local dry_run_flag=""
-
-  if [ "$DRY_RUN" = true ]; then
-    dry_run_flag="--dry-run=client"
-    log "Dry run: Would annotate namespace ${namespace} with linkerd.io/inject=${annotation}"
-  else
-    log "Annotating namespace: ${namespace} with linkerd.io/inject=${annotation}"
-  fi
-
-  if check_annotation "${namespace}" "${annotation}"; then
-    log "Namespace ${namespace} already annotated with linkerd.io/inject=${annotation}. Skipping."
-    return
-  fi
-
-  if kubectl annotate namespace "${namespace}" "linkerd.io/inject=${annotation}" --overwrite ${dry_run_flag}; then
-    log "Successfully annotated namespace ${namespace}."
-  else
-    log "Failed to annotate namespace ${namespace}. Continuing to next."
-  fi
-}
-
-# Validate yq and kubectl CLI
-validate_tools
-
-# Validate kubectl context
-validate_kubectl_context
-
-# Parse command-line arguments
-NAMESPACES=()
-DRY_RUN=false
-VERBOSE=false
-while getopts "f:n:a:h" opt; do
-  case ${opt} in
-    f)
-      CONFIG_FILE=${OPTARG}
-      ;;
-    n)
-      NAMESPACES+=("${OPTARG}")
-      ;;
-    a)
-      CLI_ANNOTATION=${OPTARG}
-      ;;
-    h)
-      usage
-      ;;
-    --)
-      shift
-      break
-      ;;
-    *)
-      usage
-      ;;
-  esac
-done
-
-# Process additional long options
-for arg in "$@"; do
-  case $arg in
-    --dry-run)
-      DRY_RUN=true
-      shift
-      ;;
-    --verbose)
-      VERBOSE=true
-      set -x
-      shift
-      ;;
-  esac
-done
-
-# If CLI arguments are provided, use them
-if [ ${#NAMESPACES[@]} -gt 0 ]; then
-  if [ -z "${CLI_ANNOTATION}" ]; then
-    log "Annotation state must be specified with -a when using -n."
-    usage
-  fi
-  if [[ "${CLI_ANNOTATION}" != "enabled" && "${CLI_ANNOTATION}" != "disabled" ]]; then
-    log "Invalid annotation value. Must be 'enabled' or 'disabled'."
-    usage
-  fi
-  for namespace in "${NAMESPACES[@]}"; do
-    annotate_namespace "${namespace}" "${CLI_ANNOTATION}"
-  done
-  exit 0
-fi
-
-# Validate the configuration file exists and is readable
-if [ -n "${CONFIG_FILE}" ] && [ -r "${CONFIG_FILE}" ]; then
-  # Read the YAML configuration file and loop over each namespace configuration
-  namespace_count=$(yq eval '.namespaces | length' "${CONFIG_FILE}")
-  for (( i=0; i<namespace_count; i++ )); do
-    NAMESPACE=$(yq eval ".namespaces[$i].name" "${CONFIG_FILE}")
-    ANNOTATION=$(yq eval ".namespaces[$i].annotation" "${CONFIG_FILE}")
-
-    if [[ "${ANNOTATION}" != "enabled" && "${ANNOTATION}" != "disabled" ]]; then
-      log "Invalid annotation value for namespace ${NAMESPACE}. Must be 'enabled' or 'disabled'. Skipping this entry."
-      continue
-    fi
-
-    annotate_namespace "${NAMESPACE}" "${ANNOTATION}"
-  done
-else
-  log "Configuration file not provided or not readable, and no CLI arguments provided."
-  usage
-fi
+sudo apt-get install yq
 ```
 
-### Usage Examples
+Or for MacOS using Homebrew:
 
-1. **Using CLI Arguments with Multiple Namespaces:**
-
-   ```bash
-   ./linkerd_namespace_annotator.sh -n my-namespace1 -n my-namespace2 -a enabled
-   ```
-
-   ```bash
-   ./linkerd_namespace_annotator.sh -n my-namespace3 -n my-namespace4 -a disabled
-   ```
-
-2. **Using a Configuration File:**
-
-   ```bash
-   ./linkerd_namespace_annotator.sh -f namespaces_config.yaml
-   ```
-
-3. **Dry Run:**
-
-   ```bash
-   ./linkerd_namespace_annotator.sh -n my-namespace1 -n my-namespace2 -a enabled --dry-run
-   ```
-
-4. **Verbose Output:**
-
-   ```bash
-   ./linkerd_namespace_annotator.sh -n my-namespace1 -n my-namespace2 -a enabled --verbose
-   ```
-   
 ```bash
-This updated script now uses the `--dry-run=client` flag with `kubectl` to simulate the changes without applying them.
-It also checks if the namespace already has the desired annotation before attempting to apply it.
+brew install yq
 ```
 
-Below is a sample YAML configuration file that can be used with the updated shell script or Go application. This file defines multiple namespaces and their desired Linkerd injection annotations.
+## Usage
 
-### Sample `namespaces_config.yaml`
+### CLI Options
+
+| Option        | Description                                                   |
+|---------------|---------------------------------------------------------------|
+| `-f`          | Path to the YAML configuration file                           |
+| `-n`          | Namespace(s) to annotate (can be specified multiple times)    |
+| `-a`          | Annotation state for Linkerd injection (enabled or disabled)  |
+| `--dry-run`   | Simulate the changes without applying them                    |
+| `--verbose`   | Enable verbose output                                         |
+
+### Examples
+
+#### Using Configuration File
+
+To annotate namespaces based on a configuration file:
+
+```bash
+./linkerd_namespace_annotator.sh -f /path/to/namespaces_config.yaml
+```
+
+#### Using CLI Arguments
+
+To annotate specific namespaces with CLI arguments:
+
+```bash
+./linkerd_namespace_annotator.sh -n namespace1 -n namespace2 -a enabled
+```
+
+#### Dry Run with CLI Arguments
+
+To perform a dry run (simulation) with CLI arguments:
+
+```bash
+./linkerd_namespace_annotator.sh -n namespace1 -n namespace2 -a enabled --dry-run
+```
+
+#### Verbose Output with CLI Arguments
+
+To enable verbose logging with CLI arguments:
+
+```bash
+./linkerd_namespace_annotator.sh -n namespace1 -n namespace2 -a enabled --verbose
+```
+
+#### Dry Run and Verbose Output with CLI Arguments
+
+To perform a dry run and enable verbose logging with CLI arguments:
+
+```bash
+./linkerd_namespace_annotator.sh -n namespace1 -n namespace2 -a enabled --dry-run --verbose
+```
+
+### Configuration File
+
+You can specify verbose and dry run settings in the YAML configuration file. These settings will be used unless overridden by CLI options.
+
+#### Sample `namespaces_config.yaml`
 
 ```yaml
+verbose: true
+dryRun: true
 namespaces:
   - name: namespace1
     annotation: enabled
@@ -216,37 +104,10 @@ namespaces:
     annotation: disabled
 ```
 
-### Explanation
-
-- **name**: The name of the namespace to be annotated.
-- **annotation**: The desired annotation state for Linkerd injection (`enabled` or `disabled`).
-
-### Using the Sample YAML File
-
-1. **Using the Shell Script:**
-
-   ```bash
-   ./linkerd_namespace_annotator.sh -f /path/to/namespaces_config.yaml
-   ```
-
-2. **Using the Go Application:**
-
-   ```bash
-   ./linkerd-annotator -f /path/to/namespaces_config.yaml
-   ```
-
-3. **Using the Docker Container:**
-
-   ```bash
-   docker run --rm -v ~/.kube:/root/.kube -v $(pwd)/namespaces_config.yaml:/root/namespaces_config.yaml linkerd-annotator:latest -f /root/namespaces_config.yaml
-   ```
-
-### Steps to Create the YAML Configuration
-
-1. **Create the YAML File:**
-
    ```bash
    cat <<EOF > namespaces_config.yaml
+   verbose: true
+   dryRun: true
    namespaces:
      - name: namespace1
        annotation: enabled
@@ -257,11 +118,53 @@ namespaces:
      - name: namespace4
        annotation: disabled
    EOF
-   ```
+  ```
 
-2. **Verify the YAML File:**
+#### Explanation:
+
+- **verbose:** Enables verbose logging when set to `true`.
+- **dryRun:** Simulates changes without applying them when set to `true`.
+- **namespaces:** An array of namespaces to annotate.
+  - **name:** The name of the namespace.
+  - **annotation:** The annotation state for Linkerd injection (`enabled` or `disabled`).
+
+### Overriding YAML Settings with CLI Options
+
+CLI options can override the settings specified in the YAML configuration file.
+
+#### Example: Dry Run (CLI Overrides YAML)
+
+To perform a dry run, overriding the `dryRun` setting in the YAML file:
+
+```bash
+./linkerd_namespace_annotator.sh -f /path/to/namespaces_config.yaml --dry-run
+```
+
+#### Example: Verbose Output (CLI Overrides YAML)
+
+To enable verbose logging, overriding the `verbose` setting in the YAML file:
+
+```bash
+./linkerd_namespace_annotator.sh -f /path/to/namespaces_config.yaml --verbose
+```
+
+## Building and Running Locally
+
+1. **Run the Shell Script:**
 
    ```bash
-   cat namespaces_config.yaml
+   ./linkerd_namespace_annotator.sh -n namespace1 -n namespace2 -a enabled
    ```
+
+2. **Run the Shell Script with Configuration File:**
+
+   ```bash
+   ./linkerd_namespace_annotator.sh -f /path/to/namespaces_config.yaml
+   ```
+
+### Additional Information
+
+- **Environment Variable Handling:** The script uses the `KUBECONFIG` environment variable if available.
+- **Validation:** Ensures required CLI tools (`kubectl`, `yq`) are installed.
+
 ---
