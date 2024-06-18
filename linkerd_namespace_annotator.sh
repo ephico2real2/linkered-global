@@ -74,7 +74,7 @@ process_config_file() {
     DRY_RUN=$(yq eval '.dryRun' "$config_file")
   fi
 
-  yq eval '.namespaces[]' "$config_file" | while IFS= read -r namespace; do
+  yq eval '.namespaces[] | {"name": .name, "annotation": .annotation}' "$config_file" | while IFS= read -r namespace; do
     name=$(echo "$namespace" | yq eval '.name' -)
     annotation=$(echo "$namespace" | yq eval '.annotation' -)
     if [ "$annotation" != "enabled" ] && [ "$annotation" != "disabled" ]; then
