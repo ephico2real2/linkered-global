@@ -199,4 +199,69 @@ fi
 This updated script now uses the `--dry-run=client` flag with `kubectl` to simulate the changes without applying them.
 It also checks if the namespace already has the desired annotation before attempting to apply it.
 ```
+
+Below is a sample YAML configuration file that can be used with the updated shell script or Go application. This file defines multiple namespaces and their desired Linkerd injection annotations.
+
+### Sample `namespaces_config.yaml`
+
+```yaml
+namespaces:
+  - name: namespace1
+    annotation: enabled
+  - name: namespace2
+    annotation: disabled
+  - name: namespace3
+    annotation: enabled
+  - name: namespace4
+    annotation: disabled
+```
+
+### Explanation
+
+- **name**: The name of the namespace to be annotated.
+- **annotation**: The desired annotation state for Linkerd injection (`enabled` or `disabled`).
+
+### Using the Sample YAML File
+
+1. **Using the Shell Script:**
+
+   ```bash
+   ./linkerd_namespace_annotator.sh -f /path/to/namespaces_config.yaml
+   ```
+
+2. **Using the Go Application:**
+
+   ```bash
+   ./linkerd-annotator -f /path/to/namespaces_config.yaml
+   ```
+
+3. **Using the Docker Container:**
+
+   ```bash
+   docker run --rm -v ~/.kube:/root/.kube -v $(pwd)/namespaces_config.yaml:/root/namespaces_config.yaml linkerd-annotator:latest -f /root/namespaces_config.yaml
+   ```
+
+### Steps to Create the YAML Configuration
+
+1. **Create the YAML File:**
+
+   ```bash
+   cat <<EOF > namespaces_config.yaml
+   namespaces:
+     - name: namespace1
+       annotation: enabled
+     - name: namespace2
+       annotation: disabled
+     - name: namespace3
+       annotation: enabled
+     - name: namespace4
+       annotation: disabled
+   EOF
+   ```
+
+2. **Verify the YAML File:**
+
+   ```bash
+   cat namespaces_config.yaml
+   ```
 ---
