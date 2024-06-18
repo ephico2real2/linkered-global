@@ -1,4 +1,3 @@
-```bash
 #!/bin/bash
 
 # Function to display usage
@@ -122,5 +121,3 @@ elif [ -n "$CONFIG_FILE" ]; then
 else
   usage
 fi
-
-```
