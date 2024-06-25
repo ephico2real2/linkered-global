@@ -45,3 +45,9 @@ Create a script to automate the annotation of namespaces for the Linkerd service
 
 **Labels:** Linkerd, Automation, Kubernetes, Scripting
 
+
+metadata:
+  annotations:
+    config.linkerd.io/skip-outbound-ports: "2181,2888,3888"
+
+
